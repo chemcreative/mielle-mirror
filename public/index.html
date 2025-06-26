@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mielle S3 Image Monitor</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <h1><i class="fas fa-images"></i> S3 Image Monitor</h1>
+            <div class="stats">
+                <div class="stat">
+                    <span class="stat-label">Total Images:</span>
+                    <span id="totalCount" class="stat-value">0</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">New Images:</span>
+                    <span id="newCount" class="stat-value">0</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Status:</span>
+                    <span id="status" class="stat-value status-checking">Checking...</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <div class="controls">
+            <button id="refreshBtn" class="btn btn-primary">
+                <i class="fas fa-sync-alt"></i> Manual Refresh
+            </button>
+            <button id="togglePolling" class="btn btn-secondary">
+                <i class="fas fa-pause"></i> Pause Auto-Check
+            </button>
+        </div>
+
+        <div id="loadingMessage" class="loading">
+            <i class="fas fa-spinner fa-spin"></i> Loading images...
+        </div>
+
+        <div id="imageGrid" class="image-grid">
+            <!-- Images will be dynamically loaded here -->
+        </div>
+
+        <div id="emptyMessage" class="empty-message" style="display: none;">
+            <i class="fas fa-image"></i>
+            <h3>No images found</h3>
+            <p>Waiting for images to be uploaded to your S3 bucket...</p>
+        </div>
+    </main>
+
+    <div id="imageModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <img id="modalImage" src="" alt="">
+            <div class="modal-info">
+                <h3 id="modalFileName"></h3>
+                <p id="modalFileInfo"></p>
+                <button id="modalDownloadBtn" class="btn btn-primary">
+                    <i class="fas fa-download"></i> Download
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html> 

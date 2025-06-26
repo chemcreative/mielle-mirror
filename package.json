@@ -1,0 +1,26 @@
+{
+  "name": "mielle-s3-image-monitor",
+  "version": "1.0.0",
+  "description": "Website that monitors S3 bucket for new images and displays them in a grid",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "aws-sdk": "^2.1490.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "multer": "^1.4.5-lts.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": "20.x"
+  },
+  "keywords": ["s3", "images", "monitoring", "download"],
+  "author": "",
+  "license": "MIT"
+} 
