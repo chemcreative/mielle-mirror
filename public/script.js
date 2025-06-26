@@ -1,23 +1,14 @@
-class S3ImageMonitor {
+class S3Gallery {
     constructor() {
-        this.pollingInterval = null;
-        this.isPolling = true;
-        this.POLL_INTERVAL = 5000; // 5 seconds
         this.allImages = [];
-        this.newImageKeys = new Set();
         
         this.initializeElements();
         this.attachEventListeners();
-        this.startPolling();
+        this.loadImages();
     }
 
     initializeElements() {
         this.elements = {
-            totalCount: document.getElementById('totalCount'),
-            newCount: document.getElementById('newCount'),
-            status: document.getElementById('status'),
-            refreshBtn: document.getElementById('refreshBtn'),
-            togglePolling: document.getElementById('togglePolling'),
             loadingMessage: document.getElementById('loadingMessage'),
             imageGrid: document.getElementById('imageGrid'),
             emptyMessage: document.getElementById('emptyMessage'),
@@ -25,14 +16,11 @@ class S3ImageMonitor {
             modalImage: document.getElementById('modalImage'),
             modalFileName: document.getElementById('modalFileName'),
             modalFileInfo: document.getElementById('modalFileInfo'),
-            modalDownloadBtn: document.getElementById('modalDownloadBtn'),
             closeModal: document.querySelector('.close')
         };
     }
 
     attachEventListeners() {
-        this.elements.refreshBtn.addEventListener('click', () => this.checkForNewImages());
-        this.elements.togglePolling.addEventListener('click', () => this.togglePolling());
         this.elements.closeModal.addEventListener('click', () => this.closeModal());
         this.elements.modal.addEventListener('click', (e) => {
             if (e.target === this.elements.modal) this.closeModal();
@@ -44,14 +32,8 @@ class S3ImageMonitor {
         });
     }
 
-    updateStatus(message, type = 'checking') {
-        this.elements.status.textContent = message;
-        this.elements.status.className = `stat-value status-${type}`;
-    }
-
-    async loadInitialImages() {
+    async loadImages() {
         try {
-            this.updateStatus('Loading...', 'checking');
             this.elements.loadingMessage.style.display = 'block';
             this.elements.imageGrid.style.display = 'none';
             this.elements.emptyMessage.style.display = 'none';
@@ -61,62 +43,18 @@ class S3ImageMonitor {
             
             this.allImages = await response.json();
             this.updateUI();
-            this.updateStatus('Connected', 'connected');
         } catch (error) {
-            console.error('Error loading initial images:', error);
-            this.updateStatus('Error', 'error');
-            this.showError('Failed to load images from S3 bucket');
+            console.error('Error loading images:', error);
+            this.elements.loadingMessage.style.display = 'none';
+            this.elements.emptyMessage.style.display = 'block';
         } finally {
             this.elements.loadingMessage.style.display = 'none';
         }
     }
 
-    async checkForNewImages() {
-        try {
-            this.updateStatus('Checking...', 'checking');
-            
-            const response = await fetch('/api/check-new-images');
-            if (!response.ok) throw new Error('Failed to check for new images');
-            
-            const data = await response.json();
-            
-            // Mark new images
-            data.newImages.forEach(img => {
-                this.newImageKeys.add(img.key);
-            });
 
-            // Update all images list
-            this.allImages = await this.getAllImages();
-            this.updateUI();
-            
-            this.elements.newCount.textContent = data.newCount;
-            this.updateStatus('Connected', 'connected');
-
-            // Show notification for new images
-            if (data.newCount > 0) {
-                this.showNotification(`${data.newCount} new image${data.newCount > 1 ? 's' : ''} found!`);
-                
-                // Clear new image indicators after 5 seconds
-                setTimeout(() => {
-                    this.newImageKeys.clear();
-                    this.updateUI();
-                }, 5000);
-            }
-        } catch (error) {
-            console.error('Error checking for new images:', error);
-            this.updateStatus('Error', 'error');
-        }
-    }
-
-    async getAllImages() {
-        const response = await fetch('/api/images');
-        if (!response.ok) throw new Error('Failed to get images');
-        return await response.json();
-    }
 
     updateUI() {
-        this.elements.totalCount.textContent = this.allImages.length;
-        
         if (this.allImages.length === 0) {
             this.elements.imageGrid.style.display = 'none';
             this.elements.emptyMessage.style.display = 'block';
@@ -137,38 +75,35 @@ class S3ImageMonitor {
     }
 
     createImageElement(image) {
-        const isNew = this.newImageKeys.has(image.key);
         const fileName = image.key.split('/').pop();
         const fileSize = this.formatFileSize(image.size);
         const uploadDate = new Date(image.lastModified).toLocaleDateString();
 
         const imageItem = document.createElement('div');
-        imageItem.className = `image-item ${isNew ? 'new-image' : ''}`;
+        imageItem.className = 'image-item';
         
         imageItem.innerHTML = `
             <div class="image-container">
                 <img src="${image.url}" alt="${fileName}" loading="lazy">
-                ${isNew ? '<div class="new-badge">NEW</div>' : ''}
+                <button class="share-btn" onclick="event.stopPropagation()">
+                    <i class="fas fa-share"></i>
+                </button>
             </div>
             <div class="image-info">
                 <div class="image-name">${fileName}</div>
                 <div class="image-details">
-                    <span>${fileSize}</span>
-                    <span>${uploadDate}</span>
+                    ${fileSize} • ${uploadDate}
                 </div>
-                <button class="download-btn" onclick="event.stopPropagation()">
-                    <i class="fas fa-download"></i> Download
-                </button>
             </div>
         `;
 
         // Add click listeners
         imageItem.addEventListener('click', () => this.openModal(image));
         
-        const downloadBtn = imageItem.querySelector('.download-btn');
-        downloadBtn.addEventListener('click', (e) => {
+        const shareBtn = imageItem.querySelector('.share-btn');
+        shareBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            this.downloadImage(image);
+            this.shareImage(image);
         });
 
         return imageItem;
@@ -183,7 +118,6 @@ class S3ImageMonitor {
         this.elements.modalFileName.textContent = fileName;
         this.elements.modalFileInfo.textContent = `Size: ${fileSize} | Uploaded: ${uploadDate}`;
         
-        this.elements.modalDownloadBtn.onclick = () => this.downloadImage(image);
         this.elements.modal.style.display = 'block';
         
         // Prevent body scrolling
@@ -195,48 +129,76 @@ class S3ImageMonitor {
         document.body.style.overflow = 'auto';
     }
 
-    async downloadImage(image) {
-        try {
-            const fileName = image.key.split('/').pop();
-            const downloadUrl = `/api/download/${encodeURIComponent(image.key)}`;
-            
-            // Create a temporary link and trigger download
-            const link = document.createElement('a');
-            link.href = downloadUrl;
-            link.download = fileName;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            
-            this.showNotification(`Downloading ${fileName}...`);
-        } catch (error) {
-            console.error('Error downloading image:', error);
-            this.showError('Failed to download image');
-        }
-    }
-
-    startPolling() {
-        this.loadInitialImages();
+    async shareImage(image) {
+        const fileName = image.key.split('/').pop();
         
-        this.pollingInterval = setInterval(() => {
-            if (this.isPolling) {
-                this.checkForNewImages();
+        if (navigator.share) {
+            // Use native sharing if available (mobile devices)
+            try {
+                await navigator.share({
+                    title: fileName,
+                    text: `Check out this image: ${fileName}`,
+                    url: image.url
+                });
+            } catch (error) {
+                console.log('Share cancelled or failed:', error);
             }
-        }, this.POLL_INTERVAL);
+        } else {
+            // Fallback: copy URL to clipboard
+            try {
+                await navigator.clipboard.writeText(image.url);
+                this.showNotification('Image URL copied to clipboard!');
+            } catch (error) {
+                // Final fallback: manual URL display
+                this.showUrlModal(image.url, fileName);
+            }
+        }
     }
 
-    togglePolling() {
-        this.isPolling = !this.isPolling;
+    showUrlModal(url, fileName) {
+        const modal = document.createElement('div');
+        modal.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        `;
         
-        if (this.isPolling) {
-            this.elements.togglePolling.innerHTML = '<i class="fas fa-pause"></i> Pause Auto-Check';
-            this.elements.togglePolling.className = 'btn btn-secondary';
-            this.updateStatus('Connected', 'connected');
-        } else {
-            this.elements.togglePolling.innerHTML = '<i class="fas fa-play"></i> Resume Auto-Check';
-            this.elements.togglePolling.className = 'btn btn-primary';
-            this.updateStatus('Paused', 'checking');
-        }
+        modal.innerHTML = `
+            <div style="
+                background: white;
+                padding: 2rem;
+                border-radius: 20px;
+                max-width: 90%;
+                text-align: center;
+            ">
+                <h3 style="color: #E81C75; margin-bottom: 1rem;">Share ${fileName}</h3>
+                <input type="text" value="${url}" style="
+                    width: 100%;
+                    padding: 1rem;
+                    border: 2px solid #f0f0f0;
+                    border-radius: 50px;
+                    margin-bottom: 1rem;
+                " readonly>
+                <button onclick="this.parentElement.parentElement.remove()" style="
+                    background: #E81C75;
+                    color: white;
+                    border: none;
+                    padding: 0.75rem 1.5rem;
+                    border-radius: 50px;
+                    cursor: pointer;
+                ">Close</button>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        modal.querySelector('input').select();
     }
 
     formatFileSize(bytes) {
@@ -248,17 +210,16 @@ class S3ImageMonitor {
     }
 
     showNotification(message) {
-        // Create a simple notification
         const notification = document.createElement('div');
         notification.style.cssText = `
             position: fixed;
             top: 20px;
             right: 20px;
-            background: #48bb78;
+            background: #E81C75;
             color: white;
             padding: 1rem 1.5rem;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            border-radius: 20px;
+            box-shadow: 0 4px 12px rgba(232, 28, 117, 0.3);
             z-index: 1000;
             animation: slideIn 0.3s ease;
         `;
@@ -274,30 +235,6 @@ class S3ImageMonitor {
                 }
             }, 300);
         }, 3000);
-    }
-
-    showError(message) {
-        const notification = document.createElement('div');
-        notification.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #f56565;
-            color: white;
-            padding: 1rem 1.5rem;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            z-index: 1000;
-        `;
-        notification.textContent = message;
-        
-        document.body.appendChild(notification);
-        
-        setTimeout(() => {
-            if (notification.parentNode) {
-                notification.parentNode.removeChild(notification);
-            }
-        }, 5000);
     }
 }
 
@@ -317,5 +254,5 @@ document.head.appendChild(style);
 
 // Initialize the application when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    new S3ImageMonitor();
+    new S3Gallery();
 }); 

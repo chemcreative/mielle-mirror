@@ -127,6 +127,11 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// Serve the admin page
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
 // Initialize and start server
 initializeImages().then(() => {
   app.listen(PORT, () => {

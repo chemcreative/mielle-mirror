@@ -10,8 +10,8 @@
 <body>
     <header>
         <div class="header-content">
-            <h1><i class="fas fa-images"></i> S3 Image Monitor</h1>
-            <div class="stats">
+            <h1><i class="fas fa-images"></i> Gallery</h1>
+            <div class="stats" id="statsContainer">
                 <div class="stat">
                     <span class="stat-label">Total Images:</span>
                     <span id="totalCount" class="stat-value">0</span>
@@ -29,7 +29,7 @@
     </header>
 
     <main>
-        <div class="controls">
+        <div class="controls" id="controlsContainer">
             <button id="refreshBtn" class="btn btn-primary">
                 <i class="fas fa-sync-alt"></i> Manual Refresh
             </button>
@@ -60,9 +60,6 @@
             <div class="modal-info">
                 <h3 id="modalFileName"></h3>
                 <p id="modalFileInfo"></p>
-                <button id="modalDownloadBtn" class="btn btn-primary">
-                    <i class="fas fa-download"></i> Download
-                </button>
             </div>
         </div>
     </div>
