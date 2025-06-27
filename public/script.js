@@ -76,8 +76,6 @@ class S3Gallery {
 
     createImageElement(image) {
         const fileName = image.key.split('/').pop();
-        const fileSize = this.formatFileSize(image.size);
-        const uploadDate = new Date(image.lastModified).toLocaleDateString();
 
         const imageItem = document.createElement('div');
         imageItem.className = 'image-item';
@@ -86,14 +84,8 @@ class S3Gallery {
             <div class="image-container">
                 <img src="${image.url}" alt="${fileName}" loading="lazy">
                 <button class="share-btn" onclick="event.stopPropagation()">
-                    <i class="fas fa-share"></i>
+                    <img src="share.png" alt="Share">
                 </button>
-            </div>
-            <div class="image-info">
-                <div class="image-name">${fileName}</div>
-                <div class="image-details">
-                    ${fileSize} • ${uploadDate}
-                </div>
             </div>
         `;
 
@@ -110,14 +102,7 @@ class S3Gallery {
     }
 
     openModal(image) {
-        const fileName = image.key.split('/').pop();
-        const fileSize = this.formatFileSize(image.size);
-        const uploadDate = new Date(image.lastModified).toLocaleString();
-
         this.elements.modalImage.src = image.url;
-        this.elements.modalFileName.textContent = fileName;
-        this.elements.modalFileInfo.textContent = `Size: ${fileSize} | Uploaded: ${uploadDate}`;
-        
         this.elements.modal.style.display = 'block';
         
         // Prevent body scrolling
