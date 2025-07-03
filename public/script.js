@@ -344,26 +344,83 @@ class S3Gallery {
     async shareImage(image) {
         const fileName = image.key.split('/').pop();
         
-        if (navigator.share) {
-            // Use native sharing if available (mobile devices)
-            try {
-                await navigator.share({
-                    title: fileName,
-                    text: `Check out this image: ${fileName}`,
-                    url: image.url
-                });
-            } catch (error) {
-                console.log('Share cancelled or failed:', error);
-            }
-        } else {
-            // Fallback: copy URL to clipboard
-            try {
-                await navigator.clipboard.writeText(image.url);
-                this.showNotification('Image URL copied to clipboard!');
-            } catch (error) {
-                // Final fallback: manual URL display
-                this.showUrlModal(image.url, fileName);
-            }
+        // Create watermarked image and download for camera roll
+        this.downloadWatermarkedForShare(image, fileName);
+    }
+
+    async downloadWatermarkedForShare(image, fileName) {
+        try {
+            this.showNotification('📱 Preparing image for camera roll...');
+            
+            // Create canvas for watermarked version
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Load the main image
+            const mainImage = new Image();
+            mainImage.crossOrigin = 'anonymous';
+            
+            mainImage.onload = () => {
+                // Set canvas size to exactly 880x1184 (portrait format)
+                canvas.width = 880;
+                canvas.height = 1184;
+                
+                // Draw the main image scaled to fit
+                ctx.drawImage(mainImage, 0, 0, 880, 1184);
+                
+                // Load the overlay
+                const overlay = new Image();
+                overlay.crossOrigin = 'anonymous';
+                
+                overlay.onload = () => {
+                    // Full-width overlay at bottom (like server-side)
+                    const overlayWidth = 880; // Full width
+                    const overlayHeight = (overlay.height * overlayWidth) / overlay.width;
+                    
+                    // Position at bottom with no padding
+                    const x = 0;
+                    const y = 1184 - overlayHeight;
+                    
+                    // Draw the overlay
+                    ctx.globalAlpha = 0.9;
+                    ctx.drawImage(overlay, x, y, overlayWidth, overlayHeight);
+                    ctx.globalAlpha = 1.0;
+                    
+                    // Convert to blob and download
+                    canvas.toBlob((blob) => {
+                        const url = URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = fileName.replace('.jpg', '_mielle.jpg');
+                        link.style.display = 'none';
+                        
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        
+                        // Clean up
+                        URL.revokeObjectURL(url);
+                        
+                        this.showNotification('💾 Image saved! Check your Downloads or Camera Roll');
+                    }, 'image/jpeg', 0.95);
+                };
+                
+                overlay.onerror = () => {
+                    this.showNotification('❌ Error loading watermark overlay');
+                };
+                
+                overlay.src = '/overlay.png';
+            };
+            
+            mainImage.onerror = () => {
+                this.showNotification('❌ Error loading image');
+            };
+            
+            mainImage.src = image.url;
+            
+        } catch (error) {
+            console.error('Error creating watermarked image for share:', error);
+            this.showNotification('❌ Error preparing image for download');
         }
     }
 
