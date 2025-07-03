@@ -260,6 +260,59 @@ main {
     object-fit: contain;
 }
 
+/* Modal Controls */
+.modal-controls {
+    background: rgba(0, 0, 0, 0.9);
+    padding: 1.5rem;
+    margin-top: 1rem;
+    border-radius: 15px;
+    backdrop-filter: blur(10px);
+}
+
+.modal-info {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.modal-info h3 {
+    color: white;
+    font-size: 1.2rem;
+    font-weight: 500;
+    margin: 0 0 0.5rem 0;
+    letter-spacing: -0.02em;
+}
+
+.modal-info p {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 0.9rem;
+    margin: 0;
+}
+
+.modal-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.modal-buttons .btn {
+    min-width: 160px;
+    font-size: 0.9rem;
+    padding: 0.75rem 1.25rem;
+}
+
+.btn-outline {
+    background: transparent;
+    color: white;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.btn-outline:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.6);
+    color: white;
+}
+
 /* Login Screen Styles */
 .login-screen {
     position: fixed;
@@ -350,6 +403,21 @@ main {
         margin: 10% auto;
         max-width: 95%;
         max-height: 85%;
+    }
+
+    .modal-buttons {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .modal-buttons .btn {
+        min-width: auto;
+        width: 100%;
+    }
+
+    .modal-controls {
+        padding: 1rem;
+        margin-top: 0.5rem;
     }
 }
 

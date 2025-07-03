@@ -52,8 +52,6 @@ class S3Gallery {
         }
     }
 
-
-
     updateUI() {
         if (this.allImages.length === 0) {
             this.elements.imageGrid.style.display = 'none';
@@ -102,11 +100,240 @@ class S3Gallery {
     }
 
     openModal(image) {
+        this.currentImage = image;
+        this.isShowingWatermark = false;
+        
+        const fileName = image.key.split('/').pop();
+        
+        // Set image and info
         this.elements.modalImage.src = image.url;
+        this.elements.modalFileName.textContent = fileName;
+        this.elements.modalFileInfo.textContent = `Size: ${this.formatFileSize(image.size)} • ${new Date(image.lastModified).toLocaleDateString()}`;
+        
+        // Show modal
         this.elements.modal.style.display = 'block';
         
         // Prevent body scrolling
         document.body.style.overflow = 'hidden';
+        
+        // Set up button event listeners
+        this.setupModalButtons();
+    }
+
+    setupModalButtons() {
+        const downloadOriginal = document.getElementById('downloadOriginal');
+        const downloadWatermarked = document.getElementById('downloadWatermarked');
+        const toggleWatermark = document.getElementById('toggleWatermark');
+        const toggleText = document.getElementById('toggleText');
+
+        // Remove existing listeners
+        downloadOriginal.replaceWith(downloadOriginal.cloneNode(true));
+        downloadWatermarked.replaceWith(downloadWatermarked.cloneNode(true));
+        toggleWatermark.replaceWith(toggleWatermark.cloneNode(true));
+
+        // Get fresh references
+        const newDownloadOriginal = document.getElementById('downloadOriginal');
+        const newDownloadWatermarked = document.getElementById('downloadWatermarked');
+        const newToggleWatermark = document.getElementById('toggleWatermark');
+        const newToggleText = document.getElementById('toggleText');
+
+        // Add event listeners
+        newDownloadOriginal.addEventListener('click', () => this.downloadOriginal());
+        newDownloadWatermarked.addEventListener('click', () => this.downloadWatermarked());
+        newToggleWatermark.addEventListener('click', () => this.toggleWatermarkView());
+
+        // Reset toggle button text
+        newToggleText.textContent = 'Show with Logo';
+    }
+
+    downloadOriginal() {
+        if (!this.currentImage) return;
+        
+        const fileName = this.currentImage.key.split('/').pop();
+        const downloadUrl = `/api/download/${encodeURIComponent(this.currentImage.key)}`;
+        
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        this.showNotification('Downloading original image...');
+    }
+
+    downloadWatermarked() {
+        if (!this.currentImage) return;
+        
+        this.showNotification('Creating watermarked image...');
+        
+        // Create canvas for watermarking
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Load the main image
+        const mainImage = new Image();
+        mainImage.crossOrigin = 'anonymous';
+        
+        mainImage.onload = () => {
+            console.log('Main image loaded:', mainImage.width, 'x', mainImage.height);
+            
+            // Set canvas size to exactly 880x1184
+            canvas.width = 880;
+            canvas.height = 1184;
+            
+            // Draw the main image scaled to fit the canvas
+            ctx.drawImage(mainImage, 0, 0, 880, 1184);
+            
+            // Load the overlay
+            const overlay = new Image();
+            overlay.crossOrigin = 'anonymous';
+            
+            overlay.onload = () => {
+                console.log('Overlay loaded:', overlay.width, 'x', overlay.height);
+                
+                // Calculate overlay size (15% of image width)
+                const overlayWidth = Math.floor(880 * 0.15);
+                const overlayHeight = (overlay.height * overlayWidth) / overlay.width;
+                
+                // Position in bottom-right corner with 20px margin
+                const x = 880 - overlayWidth - 20;
+                const y = 1184 - overlayHeight - 20;
+                
+                console.log('Applying overlay at:', x, y, 'size:', overlayWidth, 'x', overlayHeight);
+                
+                // Draw the overlay
+                ctx.globalAlpha = 0.9; // Slightly more opaque for better visibility
+                ctx.drawImage(overlay, x, y, overlayWidth, overlayHeight);
+                ctx.globalAlpha = 1.0;
+                
+                // Convert canvas to blob and download
+                canvas.toBlob((blob) => {
+                    if (!blob) {
+                        this.showNotification('Error creating watermarked image');
+                        return;
+                    }
+                    
+                    const fileName = this.currentImage.key.split('/').pop();
+                    const watermarkedName = fileName.replace(/\.[^/.]+$/, '_watermarked.jpg');
+                    
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = watermarkedName;
+                    link.style.display = 'none';
+                    
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    
+                    // Clean up
+                    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+                    this.showNotification('✅ Watermarked image downloaded!');
+                    
+                    console.log('Watermarked image downloaded successfully');
+                }, 'image/jpeg', 0.95); // Higher quality
+            };
+            
+            overlay.onerror = (error) => {
+                console.error('Error loading overlay:', error);
+                this.showNotification('❌ Error loading watermark overlay');
+            };
+            
+            overlay.src = '/overlay.png';
+        };
+        
+        mainImage.onerror = (error) => {
+            console.error('Error loading main image:', error);
+            this.showNotification('❌ Error loading image for watermarking');
+        };
+        
+        mainImage.src = this.currentImage.url;
+    }
+
+    toggleWatermarkView() {
+        if (!this.currentImage) return;
+        
+        const toggleText = document.getElementById('toggleText');
+        const modalImage = this.elements.modalImage;
+        
+        if (this.isShowingWatermark) {
+            // Switch to original
+            modalImage.src = this.currentImage.url;
+            toggleText.textContent = 'Show with Logo';
+            this.isShowingWatermark = false;
+        } else {
+            // Create watermarked preview
+            this.createWatermarkedPreview();
+        }
+    }
+
+    createWatermarkedPreview() {
+        const toggleText = document.getElementById('toggleText');
+        const modalImage = this.elements.modalImage;
+        
+        // Create canvas for preview
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Load the main image
+        const mainImage = new Image();
+        mainImage.crossOrigin = 'anonymous';
+        
+        mainImage.onload = () => {
+            console.log('Preview: Main image loaded:', mainImage.width, 'x', mainImage.height);
+            
+            // Set canvas size to exactly 880x1184
+            canvas.width = 880;
+            canvas.height = 1184;
+            
+            // Draw the main image scaled to fit the canvas
+            ctx.drawImage(mainImage, 0, 0, 880, 1184);
+            
+            // Load the overlay
+            const overlay = new Image();
+            overlay.crossOrigin = 'anonymous';
+            
+            overlay.onload = () => {
+                console.log('Preview: Overlay loaded:', overlay.width, 'x', overlay.height);
+                
+                // Calculate overlay size (15% of image width)
+                const overlayWidth = Math.floor(880 * 0.15);
+                const overlayHeight = (overlay.height * overlayWidth) / overlay.width;
+                
+                // Position in bottom-right corner with 20px margin
+                const x = 880 - overlayWidth - 20;
+                const y = 1184 - overlayHeight - 20;
+                
+                console.log('Preview: Applying overlay at:', x, y, 'size:', overlayWidth, 'x', overlayHeight);
+                
+                // Draw the overlay
+                ctx.globalAlpha = 0.9; // Same opacity as download
+                ctx.drawImage(overlay, x, y, overlayWidth, overlayHeight);
+                ctx.globalAlpha = 1.0;
+                
+                // Convert canvas to data URL and display
+                const dataURL = canvas.toDataURL('image/jpeg', 0.95);
+                modalImage.src = dataURL;
+                toggleText.textContent = 'Show Original';
+                this.isShowingWatermark = true;
+                
+                console.log('Watermarked preview created successfully');
+            };
+            
+            overlay.onerror = (error) => {
+                console.error('Preview: Error loading overlay:', error);
+                this.showNotification('❌ Error loading watermark overlay for preview');
+            };
+            
+            overlay.src = '/overlay.png';
+        };
+        
+        mainImage.onerror = (error) => {
+            console.error('Preview: Error loading main image:', error);
+            this.showNotification('❌ Error loading image for watermark preview');
+        };
+        
+        mainImage.src = this.currentImage.url;
     }
 
     closeModal() {
