@@ -244,13 +244,13 @@ async function createWatermarkedImage(imageUrl) {
     // Draw the main image
     ctx.drawImage(mainImage, 0, 0);
     
-    // Calculate overlay size (15% of image width)
-    const overlayWidth = Math.floor(mainImage.width * 0.15);
+    // Calculate overlay size (full width at bottom)
+    const overlayWidth = mainImage.width; // Full width
     const overlayHeight = (overlay.height * overlayWidth) / overlay.width;
     
-    // Position in bottom-right corner with 20px margin
-    const x = mainImage.width - overlayWidth - 20;
-    const y = mainImage.height - overlayHeight - 20;
+    // Position at bottom with no padding - full width
+    const x = 0;
+    const y = mainImage.height - overlayHeight;
     
     // Draw the overlay
     ctx.globalAlpha = 0.9;
