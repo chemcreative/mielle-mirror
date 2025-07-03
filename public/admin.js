@@ -223,22 +223,15 @@ class S3AdminMonitor {
             </div>
         `;
 
-        // Add click listeners
-        imageItem.addEventListener('click', () => this.openModal(image));
+        // Add click listeners - open full screen for easy save to camera roll
+        imageItem.addEventListener('click', () => this.openFullScreen(image));
 
         return imageItem;
     }
 
-    openModal(image) {
-        const fileName = image.key.split('/').pop();
-        const fileSize = this.formatFileSize(image.size);
-        const uploadDate = new Date(image.lastModified).toLocaleString();
-
+    openFullScreen(image) {
+        // Show the watermarked image in full screen for easy save to camera roll
         this.elements.modalImage.src = image.url;
-        this.elements.modalFileName.textContent = fileName;
-        this.elements.modalFileInfo.textContent = `Size: ${fileSize} | Uploaded: ${uploadDate}`;
-        
-        this.elements.modalDownloadBtn.onclick = () => this.downloadImage(image);
         this.elements.modal.style.display = 'block';
         
         // Prevent body scrolling

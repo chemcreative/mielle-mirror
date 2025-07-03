@@ -87,37 +87,25 @@ class S3Gallery {
             </div>
         `;
 
-        // Add click listeners
-        imageItem.addEventListener('click', () => this.openModal(image));
+        // Add click listeners - both image and share button open full screen
+        imageItem.addEventListener('click', () => this.openFullScreen(image));
         
         const shareBtn = imageItem.querySelector('.share-btn');
         shareBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            this.shareImage(image);
+            this.openFullScreen(image);
         });
 
         return imageItem;
     }
 
-    openModal(image) {
-        this.currentImage = image;
-        this.isShowingWatermark = false;
-        
-        const fileName = image.key.split('/').pop();
-        
-        // Set image and info
+    openFullScreen(image) {
+        // Show the watermarked image in full screen for easy save to camera roll
         this.elements.modalImage.src = image.url;
-        this.elements.modalFileName.textContent = fileName;
-        this.elements.modalFileInfo.textContent = `Size: ${this.formatFileSize(image.size)} • ${new Date(image.lastModified).toLocaleDateString()}`;
-        
-        // Show modal
         this.elements.modal.style.display = 'block';
         
         // Prevent body scrolling
         document.body.style.overflow = 'hidden';
-        
-        // Set up button event listeners
-        this.setupModalButtons();
     }
 
     setupModalButtons() {
