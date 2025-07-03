@@ -3,6 +3,7 @@ const AWS = require('aws-sdk');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const { createCanvas, loadImage } = require('canvas');
 require('dotenv').config();
 
 const app = express();
@@ -34,19 +35,19 @@ const testImages = [
     key: 'test-images/sample1.jpg',
     lastModified: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
     size: 1024 * 500, // 500KB
-    url: '/test-images/sample1.jpg'
+    url: '/api/watermarked/test-images/sample1.jpg'
   },
   {
     key: 'test-images/sample2.jpg', 
     lastModified: new Date(Date.now() - 1000 * 60 * 30), // 30 minutes ago
     size: 1024 * 750, // 750KB
-    url: '/test-images/sample2.jpg'
+    url: '/api/watermarked/test-images/sample2.jpg'
   },
   {
     key: 'test-images/sample3.jpg',
     lastModified: new Date(Date.now() - 1000 * 60 * 5), // 5 minutes ago
     size: 1024 * 300, // 300KB
-    url: '/test-images/sample3.jpg'
+    url: '/api/watermarked/test-images/sample3.jpg'
   }
 ];
 
@@ -64,7 +65,7 @@ async function initializeImages() {
         key: obj.Key,
         lastModified: obj.LastModified,
         size: obj.Size,
-        url: `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${obj.Key}`
+        url: `/api/watermarked/${encodeURIComponent(obj.Key)}`
       }))
       .sort((a, b) => new Date(b.lastModified) - new Date(a.lastModified));
 
@@ -106,7 +107,7 @@ app.get('/api/check-new-images', async (req, res) => {
           key: `test-images/sample-new-${Date.now()}.jpg`,
           lastModified: new Date(),
           size: 1024 * (200 + Math.floor(Math.random() * 500)), // Random size 200-700KB
-          url: `/test-images/sample${Math.floor(Math.random() * 3) + 1}.jpg` // Use existing test images
+          url: `/api/watermarked/test-images/sample${Math.floor(Math.random() * 3) + 1}.jpg` // Use existing test images
         };
         
         if (!knownImages.has(newTestImage.key)) {
@@ -135,7 +136,7 @@ app.get('/api/check-new-images', async (req, res) => {
         key: obj.Key,
         lastModified: obj.LastModified,
         size: obj.Size,
-        url: `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${obj.Key}`
+        url: `/api/watermarked/${encodeURIComponent(obj.Key)}`
       }));
 
     // Find new images
@@ -187,6 +188,82 @@ app.get('/api/download/:imageKey', async (req, res) => {
     res.status(500).json({ error: 'Failed to download image' });
   }
 });
+
+// Serve watermarked images automatically
+app.get('/api/watermarked/:imageKey', async (req, res) => {
+  try {
+    const imageKey = decodeURIComponent(req.params.imageKey);
+    
+    // Handle development mode
+    if (isDevelopmentMode && imageKey.startsWith('test-images/')) {
+      const imageName = path.basename(imageKey);
+      // Load the test image and apply watermark
+      const testImageUrl = `http://localhost:${PORT}/test-images/${imageName}`;
+      const watermarkedBuffer = await createWatermarkedImage(testImageUrl);
+      
+      res.setHeader('Content-Type', 'image/jpeg');
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      res.send(watermarkedBuffer);
+      return;
+    }
+    
+    // Production S3 mode
+    const params = {
+      Bucket: BUCKET_NAME,
+      Key: imageKey
+    };
+
+    const data = await s3.getObject(params).promise();
+    const imageUrl = `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${imageKey}`;
+    
+    const watermarkedBuffer = await createWatermarkedImage(imageUrl);
+    
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(watermarkedBuffer);
+  } catch (error) {
+    console.error('Error creating watermarked image:', error);
+    res.status(500).json({ error: 'Failed to create watermarked image' });
+  }
+});
+
+// Function to create watermarked images server-side
+async function createWatermarkedImage(imageUrl) {
+  try {
+    // Load the main image
+    const mainImage = await loadImage(imageUrl);
+    
+    // Load the overlay
+    const overlayPath = path.join(__dirname, 'public', 'overlay.png');
+    const overlay = await loadImage(overlayPath);
+    
+    // Create canvas with original image dimensions
+    const canvas = createCanvas(mainImage.width, mainImage.height);
+    const ctx = canvas.getContext('2d');
+    
+    // Draw the main image
+    ctx.drawImage(mainImage, 0, 0);
+    
+    // Calculate overlay size (15% of image width)
+    const overlayWidth = Math.floor(mainImage.width * 0.15);
+    const overlayHeight = (overlay.height * overlayWidth) / overlay.width;
+    
+    // Position in bottom-right corner with 20px margin
+    const x = mainImage.width - overlayWidth - 20;
+    const y = mainImage.height - overlayHeight - 20;
+    
+    // Draw the overlay
+    ctx.globalAlpha = 0.9;
+    ctx.drawImage(overlay, x, y, overlayWidth, overlayHeight);
+    ctx.globalAlpha = 1.0;
+    
+    // Return the watermarked image as JPEG buffer
+    return canvas.toBuffer('image/jpeg', { quality: 0.95 });
+  } catch (error) {
+    console.error('Error in createWatermarkedImage:', error);
+    throw error;
+  }
+}
 
 // Generate test images for development
 app.get('/test-images/:imageName', (req, res) => {
