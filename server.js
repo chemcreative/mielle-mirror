@@ -128,13 +128,13 @@ app.get('/api/check-new-images', async (req, res) => {
       });
     }
 
-    // Production S3 mode
+    // Production S3 mode - get current state of S3
     const data = await s3.listObjectsV2({
       Bucket: BUCKET_NAME,
       Prefix: '',
     }).promise();
 
-    const currentImages = data.Contents
+    const currentS3Images = data.Contents
       .filter(obj => obj.Key.toLowerCase().endsWith('.jpg') || obj.Key.toLowerCase().endsWith('.jpeg'))
       .map(obj => ({
         key: obj.Key,
@@ -143,22 +143,36 @@ app.get('/api/check-new-images', async (req, res) => {
         url: `/api/watermarked/${encodeURIComponent(obj.Key)}`
       }));
 
-    // Find new images
-    const newImages = currentImages.filter(img => !knownImages.has(img.key));
+    // Create a map of current S3 images for quick lookup
+    const currentS3Keys = new Set(currentS3Images.map(img => img.key));
     
-    // Update our tracking
+    // Find new images (in S3 but not in our known list)
+    const newImages = currentS3Images.filter(img => !knownImages.has(img.key));
+    
+    // Find deleted images (in our known list but not in S3)
+    const deletedImages = allImages.filter(img => !currentS3Keys.has(img.key));
+    
+    // Update our tracking - add new images
     newImages.forEach(img => {
       knownImages.add(img.key);
-      allImages.unshift(img); // Add to beginning of array
     });
+    
+    // Update our tracking - remove deleted images
+    deletedImages.forEach(img => {
+      knownImages.delete(img.key);
+    });
+    
+    // Rebuild allImages array to match current S3 state
+    allImages = currentS3Images.sort((a, b) => new Date(b.lastModified) - new Date(a.lastModified));
 
-    // Sort all images by last modified (newest first)
-    allImages.sort((a, b) => new Date(b.lastModified) - new Date(a.lastModified));
+    console.log(`S3 Sync: ${newImages.length} new, ${deletedImages.length} deleted, ${allImages.length} total`);
 
     res.json({
       newImages,
+      deletedImages,
       totalImages: allImages.length,
-      newCount: newImages.length
+      newCount: newImages.length,
+      deletedCount: deletedImages.length
     });
   } catch (error) {
     console.error('Error checking for new images:', error);

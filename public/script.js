@@ -554,6 +554,22 @@ class S3Gallery {
             
             const data = await response.json();
             
+            // Handle deleted images
+            if (data.deletedImages && data.deletedImages.length > 0) {
+                console.log(`${data.deletedImages.length} images were deleted from S3`);
+                
+                // Update our local array to match server state
+                this.allImages = this.allImages.filter(img => 
+                    !data.deletedImages.some(deletedImg => deletedImg.key === img.key)
+                );
+                
+                // Refresh the entire UI to reflect deletions
+                this.updateUI();
+                
+                this.showNotification(`🗑️ ${data.deletedImages.length} image${data.deletedImages.length > 1 ? 's' : ''} removed`);
+            }
+            
+            // Handle new images
             if (data.newImages && data.newImages.length > 0) {
                 console.log(`Found ${data.newImages.length} new images`);
                 
@@ -569,6 +585,18 @@ class S3Gallery {
                 // Highlight new images
                 this.highlightNewImages(data.newImages);
             }
+            
+            // If we have significant changes (new + deleted > 0), sync with server's total count
+            if ((data.newCount + data.deletedCount) > 0) {
+                console.log(`Total images: ${data.totalImages} (was ${this.allImages.length})`);
+                
+                // If there's a mismatch, reload all images to ensure sync
+                if (this.allImages.length !== data.totalImages) {
+                    console.log('Image count mismatch, reloading all images...');
+                    await this.loadImages();
+                }
+            }
+            
         } catch (error) {
             console.error('Error checking for new images:', error);
         } finally {
