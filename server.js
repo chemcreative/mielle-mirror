@@ -22,7 +22,7 @@ AWS.config.update({
 });
 
 const s3 = new AWS.S3();
-const BUCKET_NAME = process.env.S3_BUCKET_NAME || 'replicateimagegtd';
+const BUCKET_NAME = process.env.S3_BUCKET_NAME || 'replicateimagetd';
 
 // Store to track known images
 let knownImages = new Set();
@@ -76,6 +76,10 @@ async function initializeImages() {
     isDevelopmentMode = false;
   } catch (error) {
     console.error('Error connecting to S3:', error.message);
+    console.error('Full S3 Error:', error);
+    console.error('Bucket Name:', BUCKET_NAME);
+    console.error('Region:', process.env.AWS_REGION);
+    console.error('Access Key ID:', process.env.AWS_ACCESS_KEY_ID ? process.env.AWS_ACCESS_KEY_ID.substring(0, 8) + '...' : 'MISSING');
     console.log('🔧 Switching to DEVELOPMENT MODE with test images');
     
     // Use test images for development
