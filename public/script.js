@@ -19,44 +19,8 @@ class S3Gallery {
             modalImage: document.getElementById('modalImage'),
             modalFileName: document.getElementById('modalFileName'),
             modalFileInfo: document.getElementById('modalFileInfo'),
-            closeModal: document.querySelector('.close'),
-            refreshButton: this.createRefreshButton()
+            closeModal: document.querySelector('.close')
         };
-    }
-
-    createRefreshButton() {
-        const refreshButton = document.createElement('button');
-        refreshButton.id = 'refreshButton';
-        refreshButton.innerHTML = '🔄 Check for New Images';
-        refreshButton.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #E81C75;
-            color: white;
-            border: none;
-            padding: 12px 20px;
-            border-radius: 25px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: bold;
-            box-shadow: 0 4px 12px rgba(232, 28, 117, 0.3);
-            z-index: 1000;
-            transition: all 0.3s ease;
-        `;
-        
-        refreshButton.addEventListener('mouseenter', () => {
-            refreshButton.style.background = '#d0195a';
-            refreshButton.style.transform = 'scale(1.05)';
-        });
-        
-        refreshButton.addEventListener('mouseleave', () => {
-            refreshButton.style.background = '#E81C75';
-            refreshButton.style.transform = 'scale(1)';
-        });
-        
-        document.body.appendChild(refreshButton);
-        return refreshButton;
     }
 
     attachEventListeners() {
@@ -69,9 +33,6 @@ class S3Gallery {
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') this.closeModal();
         });
-        
-        // Add refresh button listener
-        this.elements.refreshButton.addEventListener('click', () => this.manualRefresh());
     }
 
     async loadImages() {
@@ -642,22 +603,6 @@ class S3Gallery {
                 });
             });
         }, 100);
-    }
-
-    async manualRefresh() {
-        const originalText = this.elements.refreshButton.innerHTML;
-        this.elements.refreshButton.innerHTML = '🔄 Checking...';
-        this.elements.refreshButton.disabled = true;
-        
-        try {
-            await this.checkForNewImages();
-            this.showNotification('✅ Refresh completed!');
-        } catch (error) {
-            this.showNotification('❌ Error checking for new images');
-        } finally {
-            this.elements.refreshButton.innerHTML = originalText;
-            this.elements.refreshButton.disabled = false;
-        }
     }
 
     cleanup() {
