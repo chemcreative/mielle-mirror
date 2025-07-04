@@ -1,10 +1,13 @@
 class S3Gallery {
     constructor() {
         this.allImages = [];
+        this.checkInterval = null;
+        this.isChecking = false;
         
         this.initializeElements();
         this.attachEventListeners();
         this.loadImages();
+        this.startAutoCheck();
     }
 
     initializeElements() {
@@ -16,8 +19,44 @@ class S3Gallery {
             modalImage: document.getElementById('modalImage'),
             modalFileName: document.getElementById('modalFileName'),
             modalFileInfo: document.getElementById('modalFileInfo'),
-            closeModal: document.querySelector('.close')
+            closeModal: document.querySelector('.close'),
+            refreshButton: this.createRefreshButton()
         };
+    }
+
+    createRefreshButton() {
+        const refreshButton = document.createElement('button');
+        refreshButton.id = 'refreshButton';
+        refreshButton.innerHTML = '🔄 Check for New Images';
+        refreshButton.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #E81C75;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            box-shadow: 0 4px 12px rgba(232, 28, 117, 0.3);
+            z-index: 1000;
+            transition: all 0.3s ease;
+        `;
+        
+        refreshButton.addEventListener('mouseenter', () => {
+            refreshButton.style.background = '#d0195a';
+            refreshButton.style.transform = 'scale(1.05)';
+        });
+        
+        refreshButton.addEventListener('mouseleave', () => {
+            refreshButton.style.background = '#E81C75';
+            refreshButton.style.transform = 'scale(1)';
+        });
+        
+        document.body.appendChild(refreshButton);
+        return refreshButton;
     }
 
     attachEventListeners() {
@@ -30,6 +69,9 @@ class S3Gallery {
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') this.closeModal();
         });
+        
+        // Add refresh button listener
+        this.elements.refreshButton.addEventListener('click', () => this.manualRefresh());
     }
 
     async loadImages() {
@@ -493,6 +535,109 @@ class S3Gallery {
             }, 300);
         }, 3000);
     }
+
+    startAutoCheck() {
+        // Check for new images every 10 seconds
+        this.checkInterval = setInterval(() => {
+            this.checkForNewImages();
+        }, 10000);
+    }
+
+    async checkForNewImages() {
+        if (this.isChecking) return;
+        
+        this.isChecking = true;
+        
+        try {
+            const response = await fetch('/api/check-new-images');
+            if (!response.ok) throw new Error('Failed to check for new images');
+            
+            const data = await response.json();
+            
+            if (data.newImages && data.newImages.length > 0) {
+                console.log(`Found ${data.newImages.length} new images`);
+                
+                // Add new images to the beginning of our array
+                this.allImages = [...data.newImages, ...this.allImages];
+                
+                // Update the UI
+                this.updateUI();
+                
+                // Show notification
+                this.showNotification(`🎉 ${data.newImages.length} new image${data.newImages.length > 1 ? 's' : ''} found!`);
+                
+                // Highlight new images
+                this.highlightNewImages(data.newImages);
+            }
+        } catch (error) {
+            console.error('Error checking for new images:', error);
+        } finally {
+            this.isChecking = false;
+        }
+    }
+
+    highlightNewImages(newImages) {
+        // Add a "NEW" badge to new images for 10 seconds
+        setTimeout(() => {
+            newImages.forEach(newImage => {
+                const imageElements = document.querySelectorAll('.image-item');
+                imageElements.forEach(element => {
+                    const img = element.querySelector('img');
+                    if (img && img.src.includes(encodeURIComponent(newImage.key))) {
+                        // Add NEW badge
+                        const badge = document.createElement('div');
+                        badge.className = 'new-badge';
+                        badge.textContent = 'NEW';
+                        badge.style.cssText = `
+                            position: absolute;
+                            top: 10px;
+                            left: 10px;
+                            background: #00ff00;
+                            color: #000;
+                            padding: 4px 8px;
+                            border-radius: 12px;
+                            font-size: 12px;
+                            font-weight: bold;
+                            z-index: 10;
+                            animation: pulse 1s infinite;
+                        `;
+                        
+                        element.querySelector('.image-container').appendChild(badge);
+                        
+                        // Remove badge after 10 seconds
+                        setTimeout(() => {
+                            if (badge.parentNode) {
+                                badge.parentNode.removeChild(badge);
+                            }
+                        }, 10000);
+                    }
+                });
+            });
+        }, 100);
+    }
+
+    async manualRefresh() {
+        const originalText = this.elements.refreshButton.innerHTML;
+        this.elements.refreshButton.innerHTML = '🔄 Checking...';
+        this.elements.refreshButton.disabled = true;
+        
+        try {
+            await this.checkForNewImages();
+            this.showNotification('✅ Refresh completed!');
+        } catch (error) {
+            this.showNotification('❌ Error checking for new images');
+        } finally {
+            this.elements.refreshButton.innerHTML = originalText;
+            this.elements.refreshButton.disabled = false;
+        }
+    }
+
+    cleanup() {
+        if (this.checkInterval) {
+            clearInterval(this.checkInterval);
+            this.checkInterval = null;
+        }
+    }
 }
 
 // Add CSS animations
@@ -506,10 +651,25 @@ style.textContent = `
         from { transform: translateX(0); opacity: 1; }
         to { transform: translateX(100%); opacity: 0; }
     }
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.1); }
+    }
+    
+    .image-container {
+        position: relative;
+    }
 `;
 document.head.appendChild(style);
 
 // Initialize the application when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    new S3Gallery();
+    window.s3Gallery = new S3Gallery();
+    
+    // Cleanup when page is unloaded
+    window.addEventListener('beforeunload', () => {
+        if (window.s3Gallery && window.s3Gallery.checkInterval) {
+            clearInterval(window.s3Gallery.checkInterval);
+        }
+    });
 }); 
