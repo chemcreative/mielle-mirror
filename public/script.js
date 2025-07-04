@@ -498,10 +498,10 @@ class S3Gallery {
     }
 
     startAutoCheck() {
-        // Check for new images every 10 seconds
+        // Check for new images every 3 seconds
         this.checkInterval = setInterval(() => {
             this.checkForNewImages();
-        }, 10000);
+        }, 3000);
     }
 
     async checkForNewImages() {
